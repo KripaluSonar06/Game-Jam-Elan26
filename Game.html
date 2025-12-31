@@ -1,0 +1,724 @@
+
+match_point_zero.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Match Point: Zero - Explosive Tennis Action Game">
+    <title>Match Point: Zero</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --color-bg-primary: #0a0e27;
+            --color-bg-secondary: #1a1a3e;
+            --color-text-primary: #f5f5f5;
+            --color-text-secondary: #b0b0b0;
+            --color-accent-cyan: #00d4ff;
+            --color-accent-magenta: #ff006e;
+            --color-accent-gold: #ffd700;
+            --color-accent-green: #39ff14;
+            --color-error-red: #ff4444;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 50px rgba(0, 212, 255, 0.3);
+        }
+
+        canvas {
+            border: 3px solid var(--color-accent-cyan);
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.5), inset 0 0 30px rgba(255, 0, 110, 0.1);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container"></div>
+
+    <script>
+        // =========================================
+        // MATCH POINT: ZERO - PROFESSIONAL EDITION
+        // =========================================
+
+        // Audio Engine - Web Audio API
+        class AudioEngine {
+            constructor() {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                this.masterGain = this.audioContext.createGain();
+                this.masterGain.connect(this.audioContext.destination);
+                this.masterGain.gain.value = 0.3;
+            }
+
+            playTone(freq, duration, type = 'sine', volume = 0.3) {
+                const osc = this.audioContext.createOscillator();
+                const gain = this.audioContext.createGain();
+                
+                osc.type = type;
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(volume, this.audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
+                
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(this.audioContext.currentTime);
+                osc.stop(this.audioContext.currentTime + duration);
+            }
+
+            playExplosion() {
+                const now = this.audioContext.currentTime;
+                for (let i = 0; i < 3; i++) {
+                    const osc = this.audioContext.createOscillator();
+                    const gain = this.audioContext.createGain();
+                    
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(150 - i * 40, now);
+                    osc.frequency.exponentialRampToValueAtTime(20, now + 0.3);
+                    
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(now + i * 0.02);
+                    osc.stop(now + i * 0.02 + 0.3);
+                }
+            }
+
+            playHit() {
+                this.playTone(300, 0.1, 'square', 0.3);
+            }
+
+            playRevenge() {
+                this.playTone(450, 0.2, 'sine', 0.4);
+                this.playTone(200, 0.3, 'sine', 0.3);
+            }
+
+            playBombTick() {
+                this.playTone(800, 0.05, 'sine', 0.2);
+            }
+
+            playSmashCharge() {
+                this.playTone(500, 0.3, 'sine', 0.35);
+            }
+        }
+
+        // Leaderboard Utility
+        class Leaderboard {
+            static save(name, score) {
+                const data = JSON.parse(localStorage.getItem('mpz_scores') || '[]');
+                data.push({ name, score, date: new Date().toLocaleDateString() });
+                data.sort((a, b) => b.score - a.score);
+                localStorage.setItem('mpz_scores', JSON.stringify(data.slice(0, 10)));
+            }
+
+            static getScores() {
+                return JSON.parse(localStorage.getItem('mpz_scores') || '[]');
+            }
+
+            static clear() {
+                localStorage.removeItem('mpz_scores');
+            }
+        }
+
+        // ============ GAME SCENES ============
+
+        class MenuScene extends Phaser.Scene {
+            constructor() {
+                super('MenuScene');
+            }
+
+            create() {
+                const width = this.cameras.main.width;
+                const height = this.cameras.main.height;
+
+                // Background
+                this.add.rectangle(width / 2, height / 2, width, height, 0x0a0e27);
+                
+                // Stars background
+                for (let i = 0; i < 50; i++) {
+                    const star = this.add.circle(
+                        Math.random() * width,
+                        Math.random() * height,
+                        Math.random() * 1.5,
+                        0x00d4ff,
+                        0.3
+                    );
+                }
+
+                // Title with animation
+                const title = this.add.text(width / 2, height / 4, 'MATCH POINT: ZERO', {
+                    fontSize: '64px',
+                    fontFamily: 'Arial',
+                    fontStyle: 'bold',
+                    color: '#00d4ff',
+                    align: 'center',
+                    stroke: '#ff006e',
+                    strokeThickness: 3
+                }).setOrigin(0.5);
+
+                this.tweens.add({
+                    targets: title,
+                    scale: 1.05,
+                    duration: 1000,
+                    yoyo: true,
+                    repeat: -1
+                });
+
+                // Subtitle
+                this.add.text(width / 2, height / 4 + 70, 'Destroy. Survive. Revenge.', {
+                    fontSize: '24px',
+                    color: '#ff006e',
+                    align: 'center',
+                    fontStyle: 'italic'
+                }).setOrigin(0.5);
+
+                // Buttons
+                const buttonY = height / 2;
+                const buttonGap = 80;
+
+                this.createButton(width / 2, buttonY - buttonGap, '1v1 DUEL', 0x00d4ff, () => {
+                    this.scene.start('GameScene', { players: 2 });
+                });
+
+                this.createButton(width / 2, buttonY, '2v2 TEAM', 0xff006e, () => {
+                    this.scene.start('GameScene', { players: 4 });
+                });
+
+                this.createButton(width / 2, buttonY + buttonGap, 'LEADERBOARD', 0xffd700, () => {
+                    this.showLeaderboard();
+                });
+
+                // Info text
+                this.add.text(width / 2, height - 50, 'Controls: WASD / Arrows - Move | Space/Up - Jump | Click/Hold - Hit', {
+                    fontSize: '12px',
+                    color: '#b0b0b0',
+                    align: 'center'
+                }).setOrigin(0.5);
+            }
+
+            createButton(x, y, text, color, callback) {
+                const button = this.add.rectangle(x, y, 250, 60, color, 0.2);
+                button.setStrokeStyle(2, color);
+                button.setInteractive({ useHandCursor: true });
+
+                const buttonText = this.add.text(x, y, text, {
+                    fontSize: '20px',
+                    fontFamily: 'Arial',
+                    fontStyle: 'bold',
+                    color: color
+                }).setOrigin(0.5);
+
+                button.on('pointerover', () => {
+                    button.setFillStyle(color, 0.4);
+                    this.tweens.add({
+                        targets: [button, buttonText],
+                        scale: 1.1,
+                        duration: 200
+                    });
+                });
+
+                button.on('pointerout', () => {
+                    button.setFillStyle(color, 0.2);
+                    this.tweens.add({
+                        targets: [button, buttonText],
+                        scale: 1,
+                        duration: 200
+                    });
+                });
+
+                button.on('pointerdown', callback);
+            }
+
+            showLeaderboard() {
+                const scores = Leaderboard.getScores();
+                let text = 'TOP 10 SCORES:\n\n';
+                scores.forEach((s, i) => {
+                    text += `${i + 1}. ${s.name} - ${s.score}\n`;
+                });
+
+                const width = this.cameras.main.width;
+                const height = this.cameras.main.height;
+
+                const bg = this.add.rectangle(width / 2, height / 2, 600, 500, 0x1a1a3e);
+                bg.setStrokeStyle(2, 0x00d4ff);
+
+                const leaderboardText = this.add.text(width / 2, height / 2, text, {
+                    fontSize: '16px',
+                    color: '#00d4ff',
+                    align: 'center',
+                    lineSpacing: 10
+                }).setOrigin(0.5);
+
+                const closeBtn = this.add.text(width / 2, height / 2 + 200, 'Back to Menu', {
+                    fontSize: '16px',
+                    color: '#ff006e',
+                    backgroundColor: '#1a1a3e',
+                    padding: { x: 20, y: 10 }
+                }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+                closeBtn.on('pointerdown', () => {
+                    bg.destroy();
+                    leaderboardText.destroy();
+                    closeBtn.destroy();
+                });
+            }
+        }
+
+        class GameScene extends Phaser.Scene {
+            constructor() {
+                super('GameScene');
+            }
+
+            init(data) {
+                this.playerCount = data.players || 2;
+            }
+
+            create() {
+                const width = this.cameras.main.width;
+                const height = this.cameras.main.height;
+
+                // Audio engine
+                this.audio = new AudioEngine();
+
+                // Background
+                this.add.rectangle(width / 2, height / 2, width, height, 0x0a0e27);
+                
+                // Court grid
+                this.createCourt(width, height);
+
+                // Players
+                this.players = [];
+                const playerColors = [0x00d4ff, 0xff006e, 0xffb703, 0x39ff14];
+                const startX = [width * 0.25, width * 0.75, width * 0.25, width * 0.75];
+                const startY = [height * 0.7, height * 0.7, height * 0.3, height * 0.3];
+
+                for (let i = 0; i < this.playerCount; i++) {
+                    this.players.push(new Player(
+                        this,
+                        startX[i],
+                        startY[i],
+                        playerColors[i],
+                        i
+                    ));
+                }
+
+                // Bomb
+                this.bomb = new Bomb(this, width / 2, height / 2.5, this.audio);
+
+                // Particles
+                this.particles = this.add.particles(0xffffff);
+
+                // Physics collisions
+                this.physics.add.overlap(this.bomb, this.players, (bomb, player) => {
+                    this.hitBomb(bomb, player);
+                });
+
+                // Pause
+                this.isPaused = false;
+                this.input.keyboard.on('keydown-ESC', () => {
+                    this.togglePause();
+                });
+
+                // HUD
+                this.scoreTexts = [];
+                this.players.forEach((p, i) => {
+                    const x = i % 2 === 0 ? 20 : width - 20;
+                    const y = i < 2 ? 20 : 80;
+                    this.scoreTexts.push(
+                        this.add.text(x, y, '', {
+                            fontSize: '16px',
+                            color: '#' + playerColors[i].toString(16).padStart(6, '0'),
+                            fontFamily: 'Courier New'
+                        }).setOrigin(i % 2 === 0 ? 0 : 1, 0)
+                    );
+                });
+
+                this.timerText = this.add.text(width / 2, 20, '', {
+                    fontSize: '20px',
+                    color: '#ffd700',
+                    fontFamily: 'Courier New'
+                }).setOrigin(0.5);
+
+                this.matchTime = 0;
+            }
+
+            createCourt(width, height) {
+                const tileSize = 60;
+                const cols = Math.ceil(width / tileSize);
+                const rows = Math.ceil(height / tileSize);
+
+                this.tiles = [];
+                for (let row = 0; row < rows; row++) {
+                    for (let col = 0; col < cols; col++) {
+                        const x = col * tileSize;
+                        const y = row * tileSize;
+                        const tile = this.add.rectangle(x + tileSize / 2, y + tileSize / 2, tileSize, tileSize, 0x1a3e2e);
+                        tile.setStrokeStyle(1, 0x00d4ff);
+                        this.tiles.push({
+                            sprite: tile,
+                            health: 3,
+                            x,
+                            y,
+                            size: tileSize
+                        });
+                    }
+                }
+            }
+
+            hitBomb(bomb, player) {
+                if (bomb.isExploding) return;
+
+                const direction = bomb.x > player.x ? 1 : -1;
+                const force = 600 + player.chargeLevel * 400;
+
+                bomb.body.setVelocity(direction * force, -400);
+
+                player.score += Math.floor(force / 10);
+                this.audio.playHit();
+            }
+
+            createExplosion(x, y, power = 1) {
+                this.audio.playExplosion();
+                
+                // Screen shake
+                this.cameras.main.shake(300, 0.02 * power);
+
+                // Particles
+                this.particles.emitParticleAt(x, y, 30);
+
+                // Damage players
+                this.players.forEach(p => {
+                    const dist = Phaser.Math.Distance.Between(x, y, p.x, p.y);
+                    if (dist < 150 * power) {
+                        const damage = Math.max(5, 30 * (1 - dist / (150 * power)));
+                        p.takeDamage(damage);
+                        p.revenge = Math.min(p.revenge + damage / 10, 100);
+                        const knockForce = 1000 * (1 - dist / (150 * power));
+                        p.body.setVelocity(
+                            Math.sign(p.x - x) * knockForce,
+                            -knockForce
+                        );
+                    }
+                });
+
+                // Damage tiles
+                this.tiles.forEach(tile => {
+                    const tileCenterX = tile.x + tile.size / 2;
+                    const tileCenterY = tile.y + tile.size / 2;
+                    const dist = Phaser.Math.Distance.Between(x, y, tileCenterX, tileCenterY);
+                    
+                    if (dist < 200 * power) {
+                        tile.health--;
+                        if (tile.health <= 0) {
+                            tile.sprite.setAlpha(0.2);
+                        } else {
+                            tile.sprite.setFillStyle(0xff0000, 0.5);
+                            this.time.delayedCall(100, () => {
+                                tile.sprite.setFillStyle(0x1a3e2e, 1);
+                            });
+                        }
+                    }
+                });
+            }
+
+            togglePause() {
+                this.isPaused = !this.isPaused;
+                this.physics.pause();
+                if (!this.isPaused) {
+                    this.physics.resume();
+                }
+            }
+
+            update() {
+                if (this.isPaused) return;
+
+                this.matchTime += 1 / 60;
+                this.timerText.setText(`Time: ${Math.floor(this.matchTime)}s`);
+
+                // Update players
+                this.players.forEach(p => {
+                    if (p.isAlive) {
+                        p.update();
+                    }
+                });
+
+                // Update bomb
+                if (this.bomb && !this.bomb.isExploding) {
+                    this.bomb.update();
+                    if (this.bomb.fuseRemaining <= 0) {
+                        this.createExplosion(this.bomb.x, this.bomb.y, 1);
+                        this.bomb.isExploding = true;
+                        this.time.delayedCall(500, () => {
+                            this.bomb.destroy();
+                            this.bomb = new Bomb(this, this.cameras.main.width / 2, this.cameras.main.height / 3, this.audio);
+                        });
+                    }
+                }
+
+                // Update HUD
+                this.players.forEach((p, i) => {
+                    if (this.scoreTexts[i]) {
+                        this.scoreTexts[i].setText(`P${i + 1}: HP ${Math.floor(p.health)} | Score ${p.score}`);
+                    }
+                });
+
+                // Check game over
+                const alive = this.players.filter(p => p.isAlive).length;
+                if (alive <= 1 && this.matchTime > 5) {
+                    this.endGame();
+                }
+            }
+
+            endGame() {
+                this.physics.pause();
+                const winner = this.players.reduce((max, p) => p.score > max.score ? p : max);
+                
+                Leaderboard.save(`Player ${winner.id + 1}`, winner.score);
+
+                this.scene.start('GameOverScene', {
+                    winner: winner.id + 1,
+                    score: winner.score,
+                    players: this.players
+                });
+            }
+        }
+
+        class GameOverScene extends Phaser.Scene {
+            constructor() {
+                super('GameOverScene');
+            }
+
+            init(data) {
+                this.winner = data.winner;
+                this.score = data.score;
+            }
+
+            create() {
+                const width = this.cameras.main.width;
+                const height = this.cameras.main.height;
+
+                // Background
+                this.add.rectangle(width / 2, height / 2, width, height, 0x0a0e27);
+
+                // Game over text
+                this.add.text(width / 2, height / 3, 'GAME OVER', {
+                    fontSize: '80px',
+                    fontFamily: 'Arial',
+                    fontStyle: 'bold',
+                    color: '#ff006e',
+                    align: 'center',
+                    stroke: '#00d4ff',
+                    strokeThickness: 3
+                }).setOrigin(0.5);
+
+                // Winner text
+                this.add.text(width / 2, height / 2, `Player ${this.winner} WINS!`, {
+                    fontSize: '48px',
+                    color: '#00d4ff',
+                    align: 'center'
+                }).setOrigin(0.5);
+
+                // Score
+                this.add.text(width / 2, height / 2 + 80, `Final Score: ${this.score}`, {
+                    fontSize: '32px',
+                    color: '#ffd700',
+                    align: 'center'
+                }).setOrigin(0.5);
+
+                // Buttons
+                this.createButton(width / 2, height - 150, 'PLAY AGAIN', 0x00d4ff, () => {
+                    this.scene.start('GameScene', { players: 2 });
+                });
+
+                this.createButton(width / 2, height - 80, 'MENU', 0xff006e, () => {
+                    this.scene.start('MenuScene');
+                });
+            }
+
+            createButton(x, y, text, color, callback) {
+                const button = this.add.rectangle(x, y, 250, 60, color, 0.2);
+                button.setStrokeStyle(2, color);
+                button.setInteractive({ useHandCursor: true });
+
+                const buttonText = this.add.text(x, y, text, {
+                    fontSize: '20px',
+                    fontFamily: 'Arial',
+                    fontStyle: 'bold',
+                    color: color
+                }).setOrigin(0.5);
+
+                button.on('pointerover', () => {
+                    button.setFillStyle(color, 0.4);
+                });
+
+                button.on('pointerout', () => {
+                    button.setFillStyle(color, 0.2);
+                });
+
+                button.on('pointerdown', callback);
+            }
+        }
+
+        // ============ GAME OBJECTS ============
+
+        class Player extends Phaser.Physics.Arcade.Sprite {
+            constructor(scene, x, y, color, id) {
+                super(scene, x, y);
+                scene.add.existing(this);
+                scene.physics.add.existing(this);
+
+                this.id = id;
+                this.color = color;
+                this.setFillStyle(color);
+                this.setDisplaySize(40, 60);
+                this.setCollideWorldBounds(true);
+                this.setBounce(0.2);
+
+                // Stats
+                this.health = 100;
+                this.maxHealth = 100;
+                this.score = 0;
+                this.revenge = 0;
+                this.chargeLevel = 0;
+                this.isAlive = true;
+
+                // Controls
+                const keyMaps = [
+                    { left: 'A', right: 'D', jump: 'W', hit: 'S' },
+                    { left: 'LEFT', right: 'RIGHT', jump: 'UP', hit: 'DOWN' },
+                    { left: 'Q', right: 'E', jump: 'R', hit: 'F' },
+                    { left: 'J', right: 'L', jump: 'I', hit: 'K' }
+                ];
+
+                this.keys = scene.input.keyboard.addKeys(keyMaps[id]);
+                this.speed = 300;
+                this.jumpPower = 500;
+            }
+
+            update() {
+                // Movement
+                if (this.keys.left.isDown) {
+                    this.setVelocityX(-this.speed);
+                } else if (this.keys.right.isDown) {
+                    this.setVelocityX(this.speed);
+                } else {
+                    this.setVelocityX(0);
+                }
+
+                // Jump
+                if (Phaser.Input.Keyboard.JustDown(this.keys.jump) && this.body.onFloor()) {
+                    this.setVelocityY(-this.jumpPower);
+                }
+
+                // Charge
+                if (this.keys.hit.isDown) {
+                    this.chargeLevel = Math.min(this.chargeLevel + 0.02, 1);
+                } else if (this.chargeLevel > 0.1) {
+                    // Release charge (handled by scene collision)
+                    this.chargeLevel = 0;
+                }
+
+                // Death check
+                if (this.y > this.scene.cameras.main.height) {
+                    this.health = 0;
+                    this.isAlive = false;
+                    this.setAlpha(0.3);
+                }
+            }
+
+            takeDamage(amount) {
+                this.health = Math.max(0, this.health - amount);
+                if (this.health <= 0) {
+                    this.isAlive = false;
+                    this.setTint(0x555555);
+                }
+            }
+        }
+
+        class Bomb extends Phaser.Physics.Arcade.Sprite {
+            constructor(scene, x, y, audioEngine) {
+                super(scene, x, y);
+                scene.add.existing(this);
+                scene.physics.add.existing(this);
+
+                this.audio = audioEngine;
+                this.setFillStyle(0xff3333);
+                this.setDisplaySize(30, 30);
+                this.setBounce(1);
+                this.setCollideWorldBounds(true);
+
+                this.fuseDuration = 8;
+                this.fuseRemaining = this.fuseDuration;
+                this.isExploding = false;
+                this.tickCounter = 0;
+
+                // Velocity damping
+                this.setDrag(0.01);
+            }
+
+            update() {
+                this.fuseRemaining -= 1 / 60;
+                this.tickCounter += 1 / 60;
+
+                // Fuse ticking
+                if (this.tickCounter >= 0.3 && this.fuseRemaining > 0) {
+                    this.audio.playBombTick();
+                    this.tickCounter = 0;
+                }
+
+                // Visual pulsing
+                const pulseFactor = Math.sin(Date.now() / 100) * 0.1 + 1;
+                this.setScale(pulseFactor);
+            }
+        }
+
+        // ============ PHASER CONFIG ============
+
+        const config = {
+            type: Phaser.AUTO,
+            width: 1200,
+            height: 700,
+            parent: 'game-container',
+            backgroundColor: '#0a0e27',
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 500 },
+                    debug: false
+                }
+            },
+            scene: [MenuScene, GameScene, GameOverScene],
+            render: {
+                pixelArt: false,
+                antialias: true
+            }
+        };
+
+        const game = new Phaser.Game(config);
+    </script>
+</body>
+</html>
