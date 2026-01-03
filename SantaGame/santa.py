@@ -20,8 +20,10 @@ screen_height = infoObject.current_h
 screen = pygame.display.set_mode((screen_width, screen_height), pygame.FULLSCREEN)
 pygame.display.set_caption('Santa Platformer - Fullscreen')
 
-# Calculate scaling factor based on screen height
-scale_factor = screen_height / 500  # Original height was 500
+# Calculate scaling factor - use the maximum to fill entire screen
+scale_factor_width = screen_width / 500
+scale_factor_height = screen_height / 500
+scale_factor = max(scale_factor_width, scale_factor_height)  # Fill entire screen
 
 # Define fonts - scaled based on screen size
 font = pygame.font.SysFont('Bauhaus 93', int(35 * scale_factor))
@@ -39,7 +41,7 @@ score = 0
 white = (255, 255, 255)
 blue = (0, 0, 255)
 
-# Load images
+# Load images - scale background to fill entire screen with no borders
 bg_img = pygame.image.load('img/sky.png')
 bg_img = pygame.transform.scale(bg_img, (screen_width, screen_height))
 restart_img = pygame.image.load('img/restart_btn.png')
@@ -409,6 +411,8 @@ while run:
 
     clock.tick(fps)
 
+    # Fill screen with background (no borders)
+    screen.fill((0, 0, 0))  # Black fill first
     screen.blit(bg_img, (0, 0))
 
     if main_menu == True:
